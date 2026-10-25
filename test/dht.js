@@ -4,8 +4,6 @@ var fs = require('fs')
 var path = require('path')
 var vm = require('vm')
 
-// Exercise the real wrapper with a controllable DHT client and clock.
-// No public swarm, DNS, sockets or third-party test dependencies are needed.
 function fixture(synchronous) {
   var now = 0, nextId = 0, timers = [], calls = [], client
   function schedule(fn, delay) {
@@ -53,31 +51,29 @@ function test(name, run) {
   catch (error) { process.exitCode = 1; console.error('not ok - ' + name); console.error(error.message) }
 }
 
-test('a completed lookup can be retried by the next run', function() {
+test('retry after lookup completes', function() {
   var f = fixture()
   f.source.run(); f.tick(1500)
   assert.strictEqual(f.calls.length, 1)
-  assert.strictEqual(typeof f.calls[0].callback, 'function')
   f.calls[0].callback()
   f.source.run(); f.tick(1500)
   assert.strictEqual(f.calls.length, 2)
   assert.strictEqual(f.source.numRequests, 2)
 })
 
-test('an active or scheduled lookup is not duplicated', function() {
+test('run does not start duplicate lookups', function() {
   var f = fixture()
   f.source.run(); f.source.run(); f.tick(1500)
   f.source.run(); f.tick(30000)
   assert.strictEqual(f.calls.length, 1)
 })
 
-test('completion of a paused lookup cannot clear the current lookup', function() {
+test('old callback does not clear a newer lookup', function() {
   var f = fixture()
   f.source.run(); f.tick(1500)
   f.source.pause(); f.source.run(); f.tick(1500)
   assert.strictEqual(f.calls[0].aborted, 1)
   assert.strictEqual(f.calls.length, 2)
-  assert.strictEqual(typeof f.calls[0].callback, 'function')
   f.calls[0].callback()
   f.source.run(); f.tick(1500)
   assert.strictEqual(f.calls.length, 2)
@@ -86,14 +82,14 @@ test('completion of a paused lookup cannot clear the current lookup', function()
   assert.strictEqual(f.calls.length, 3)
 })
 
-test('synchronous completion does not leave a stale abort handle', function() {
+test('retry after synchronous completion', function() {
   var f = fixture(true)
   f.source.run(); f.tick(1500)
   f.source.run(); f.tick(1500)
   assert.strictEqual(f.calls.length, 2)
 })
 
-test('pause cancels a lookup that has not started', function() {
+test('pause cancels a pending lookup', function() {
   var f = fixture()
   f.source.run(); f.source.pause(); f.tick(1500)
   assert.strictEqual(f.calls.length, 0)
